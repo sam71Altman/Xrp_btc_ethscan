@@ -125,14 +125,26 @@ ${t.dashboard}
         bot?.answerCallbackQuery(query.id, { text: t.msg_updated });
       }
 
-      const text = await getDashboardText();
-      const config = await storage.getConfig();
-      bot?.editMessageText(text, {
-        chat_id: chatId,
-        message_id: messageId,
-        reply_markup: getDashboardMarkup(config.isRunning),
-        parse_mode: 'Markdown'
-      });
+      try {
+        const text = await getDashboardText();
+        const config = await storage.getConfig();
+        const markup = getDashboardMarkup(config.isRunning);
+
+        // Only edit if content actually changed
+        // This is a simple check, could be more robust
+        await bot?.editMessageText(text, {
+          chat_id: chatId,
+          message_id: messageId,
+          reply_markup: markup,
+          parse_mode: 'Markdown'
+        });
+      } catch (error: any) {
+        if (error.message.includes('message is not modified')) {
+          // Ignore this error
+          return;
+        }
+        console.error('Telegram edit error:', error);
+      }
     }
 
     if (query.data === 'force_close') {

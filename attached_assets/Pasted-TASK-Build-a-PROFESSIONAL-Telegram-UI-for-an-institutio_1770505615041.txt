@@ -1,0 +1,231 @@
+TASK: Build a PROFESSIONAL Telegram UI for an institutional trading bot
+
+GOAL:
+Design a clean, minimal, production-grade control interface.
+
+This is NOT a fancy UI.
+This is an OPERATIONAL CONTROL PANEL.
+
+Focus on:
+- clarity
+- zero ambiguity
+- instant feedback
+- single source of truth
+
+==================================================
+CRITICAL ARCHITECTURE RULES (MANDATORY)
+==================================================
+
+1) UI MUST NOT store any state.
+   UI only reads from TradingEngine.
+
+2) UI MUST NOT calculate anything.
+   All values come directly from engine.get_status()
+
+3) UI MUST NOT execute trades directly.
+   Buttons only call engine commands.
+
+4) Every button press must show confirmation message.
+
+5) No duplicate buttons.
+   No static checkmarks.
+   Only dynamic active state.
+
+==================================================
+STRUCTURE REQUIRED
+==================================================
+
+Create EXACTLY 5 screens only:
+
+/start     → Dashboard
+/mode      → Mode Control
+/trades    → Trade History
+/health    → System Health
+/settings  → Risk Settings
+
+Do NOT add extra menus.
+
+==================================================
+SCREEN 1 — DASHBOARD (READ ONLY)
+==================================================
+
+Purpose:
+Quick status view in < 2 seconds.
+
+Display:
+
+• Current Mode
+• Position Status (OPEN/CLOSED)
+• Side (BUY/SELL)
+• Current PnL %
+• Daily PnL %
+• Trades Today
+• System State (HEALTHY / PAUSED / CIRCUIT OPEN)
+
+Rules:
+- text only
+- no buttons here
+- always refreshed from engine
+
+Layout:
+Clean vertical list
+No emojis except status icons
+
+==================================================
+SCREEN 2 — MODE CONTROL
+==================================================
+
+Purpose:
+Manual switching only.
+
+NO AUTO DETECTION.
+
+Buttons:
+
+⚡ Fast Normal
+🔻 Fast Down
+🏃 Runner
+🧠 Smart
+🚀 HFT
+
+Rules:
+
+• Only ONE active
+• Show ✅ on selected only
+• Never show multiple checks
+• No duplicated rows
+• Inline keyboard only
+• On click:
+
+    engine.set_mode(mode)
+
+Then send message:
+
+[MODE] Switched to FAST_DOWN ✅
+
+==================================================
+SCREEN 3 — TRADE HISTORY
+==================================================
+
+Purpose:
+Debugging + transparency
+
+Show last 20 trades:
+
+For each row:
+
+Time | Strategy | Entry | Exit | PnL% | Reason
+
+Example:
+
+12:31 FAST 0.10% TP
+12:32 DOWN -0.12% TIMEOUT
+
+Rules:
+- newest first
+- compact lines
+- no graphics
+
+==================================================
+SCREEN 4 — SYSTEM HEALTH
+==================================================
+
+Purpose:
+Engineering diagnostics
+
+Display:
+
+Engine: RUNNING / LOCKED
+Queue: 0/1
+Circuit Breaker: OPEN/CLOSED
+Cooldown: ACTIVE/OFF
+Guards: OK/FAIL
+Latency: XX ms
+Duplicate Protection: ACTIVE
+
+Rules:
+Red icon if unhealthy
+Green if healthy
+
+==================================================
+SCREEN 5 — SETTINGS
+==================================================
+
+Purpose:
+Risk parameters only
+
+Allow editing:
+
+• Max trades/day
+• Cooldown seconds
+• Risk %
+• Enable/Disable notifications
+
+Rules:
+Simple inline buttons only
+No free text inputs
+
+==================================================
+BUTTON BEHAVIOR RULES
+==================================================
+
+Every action must:
+
+1) call engine method
+2) wait for result
+3) show confirmation
+
+Example:
+
+engine.set_mode("FAST_DOWN")
+
+→ reply:
+"Mode changed to FAST DOWN ✅"
+
+Never silently change state.
+
+==================================================
+VISUAL STYLE
+==================================================
+
+Design constraints:
+
+• minimal
+• dark mode friendly
+• no clutter
+• no emojis spam
+• no animations
+• no images
+• pure text + buttons
+
+This is a trading control panel, not a game.
+
+==================================================
+FORBIDDEN
+==================================================
+
+❌ duplicate buttons
+❌ multiple checkmarks
+❌ local state inside UI
+❌ auto switching modes
+❌ strategy logic in UI
+❌ extra menus
+❌ blocking calls
+❌ sending 2 notifications for same trade
+
+==================================================
+EXPECTED RESULT
+==================================================
+
+User can:
+
+• instantly see status
+• switch modes safely
+• inspect trades
+• diagnose problems
+• never get confused
+
+Interface must feel like:
+"professional exchange terminal"
+not
+"telegram toy bot"

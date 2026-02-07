@@ -107,7 +107,7 @@ async function tick(symbol: string) {
     // Let's enter randomly to simulate "continuous" trading for the demo.
     // In a real strategy, this would analyze `await storage.getMarketHistory(5)`.
     
-    const shouldEnter = Math.random() > 0.3; // Aggressive entry
+    const shouldEnter = Math.random() > 0.1; // Very aggressive entry for testing
     
     if (shouldEnter) {
        await storage.createTrade({

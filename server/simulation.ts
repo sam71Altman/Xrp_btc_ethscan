@@ -2,11 +2,8 @@ import { storage } from "./storage";
 import { sendTradeNotification } from "./telegram";
 
 // Simulation State
-let currentPrice = 50000; // Starting BTC price
-let lastTickTime = Date.now();
 let lastTradeTime = 0;
-
-// Market Simulation Parameters (Mocking Binance Data for BTC, ETH, XRP)
+let currentSymbolIndex = 0;
 const SYMBOLS = ['BTC/USDT', 'ETH/USDT', 'XRP/USDT'];
 const VOLATILITY = 0.0002;
 const DRIFT = 0;
@@ -61,7 +58,9 @@ async function tick(symbol: string) {
   const openTrade = await storage.getOpenTrade();
 
   if (openTrade) {
-    // --- MANAGE OPEN POSITION ---
+    // Only process the symbol that has an open trade
+    if (openTrade.symbol !== symbol) return;
+
     const entryPrice = Number(openTrade.entryPrice);
     const durationSec = (now - new Date(openTrade.entryTime).getTime()) / 1000;
     const currentProfitPercent = ((currentPrice - entryPrice) / entryPrice) * 100;
@@ -88,6 +87,9 @@ async function tick(symbol: string) {
   } else {
     // --- LOOK FOR ENTRY ---
     
+    // Round-robin logic: Only allow entry for the current symbol in rotation
+    if (SYMBOLS[currentSymbolIndex] !== symbol) return;
+
     // Check Cooldown
     const timeSinceLastTrade = (now - lastTradeTime) / 1000;
     if (timeSinceLastTrade < config.cooldownSeconds) return;
@@ -117,7 +119,10 @@ async function tick(symbol: string) {
          profitPercent: "0",
        });
        console.log(`Entered ${symbol} trade at ${currentPrice}`);
-       sendTradeNotification(`Entered ${symbol} trade at ${currentPrice}`);
+       sendTradeNotification(`🚀 *دخول صفقة جديدة*\nالعملة: ${symbol}\nالسعر: ${currentPrice.toFixed(2)}`);
+       
+       // Move to next symbol for the next trade
+       currentSymbolIndex = (currentSymbolIndex + 1) % SYMBOLS.length;
     }
   }
 }
@@ -141,5 +146,9 @@ async function closeTrade(id: number, price: number, reason: string, profitPerce
   
   lastTradeTime = Date.now();
   console.log(`Closed ${symbol} trade ${reason} at ${price} (${profitPercent.toFixed(2)}%)`);
-  sendTradeNotification(`Closed ${symbol} trade at ${price} (${profitPercent.toFixed(2)}%)\nReason: ${reason}`);
+  
+  const arabicReason = reason === 'TP' ? 'جني أرباح' : reason === 'TIME_EXIT' ? 'خروج زمني' : 'خروج طارئ';
+  const emoji = profitPercent > 0 ? '✅' : '❌';
+  
+  sendTradeNotification(`${emoji} *إغلاق صفقة*\nالعملة: ${symbol}\nالسعر: ${price.toFixed(2)}\nالربح: ${profitPercent.toFixed(2)}%\nالسبب: ${arabicReason}`);
 }

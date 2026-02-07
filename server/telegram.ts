@@ -13,23 +13,23 @@ export function initTelegramBot() {
   bot = new TelegramBot(token, { polling: true });
 
   bot.onText(/\/start/, (msg) => {
-    bot?.sendMessage(msg.chat.id, "Welcome to Continuous Profit Engine Bot!\nUse /status to see current performance.");
+    bot?.sendMessage(msg.chat.id, "مرحباً بك في بوت التداول الآلي الذكي! 🚀\nاستخدم أمر /status لمتابعة الأداء اللحظي.");
   });
 
   bot.onText(/\/status/, async (msg) => {
     const stats = await storage.getStats();
     const config = await storage.getConfig();
     const message = `
-📊 *Engine Status*
-Symbol: ${config.symbol}
-Running: ${config.isRunning ? "✅" : "❌"}
+📊 *حالة المحرك*
+العملة الحالية: ${config.symbol}
+الحالة: ${config.isRunning ? "يعمل ✅" : "متوقف ❌"}
 
-📈 *Performance*
-Total Profit: $${Number(stats.totalProfit).toFixed(2)}
-Win Rate: ${stats.winRate.toFixed(1)}%
-Daily Loss: $${stats.dailyLoss.toFixed(2)}
-Active Trades: ${stats.activeTrades}
-Trades Today: ${stats.tradesToday}
+📈 *ملخص الأداء*
+إجمالي الأرباح: $${Number(stats.totalProfit).toFixed(2)}
+نسبة النجاح: ${stats.winRate.toFixed(1)}%
+خسارة اليوم: $${stats.dailyLoss.toFixed(2)}
+الصفقات النشطة: ${stats.activeTrades}
+صفقات اليوم: ${stats.tradesToday}
     `;
     bot?.sendMessage(msg.chat.id, message, { parse_mode: 'Markdown' });
   });
@@ -40,6 +40,6 @@ Trades Today: ${stats.tradesToday}
 export function sendTradeNotification(message: string) {
   const chatId = process.env.TELEGRAM_CHAT_ID;
   if (bot && chatId) {
-    bot.sendMessage(chatId, `🔔 *Trade Alert*\n${message}`, { parse_mode: 'Markdown' });
+    bot.sendMessage(chatId, `🔔 *تنبيه تداول*\n${message}`, { parse_mode: 'Markdown' });
   }
 }

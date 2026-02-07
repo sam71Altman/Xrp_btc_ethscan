@@ -101,13 +101,14 @@ async function tick(symbol: string) {
       return; 
     }
 
-    // Entry Logic: "Micro pullbacks or small breakouts"
-    // Simplified Simulation: Enter if we had a small dip (buy the dip)
-    // In random walk, any entry is as good as another, but let's pretend we found a signal.
-    // Let's enter randomly to simulate "continuous" trading for the demo.
-    // In a real strategy, this would analyze `await storage.getMarketHistory(5)`.
+    // Entry Logic: Use specific mode logic
+    // Simplified Simulation for the demo:
+    let probability = 0.1; // Default
+    if (config.mode === 'HFT') probability = 0.4;
+    if (config.mode === 'FAST_NORMAL') probability = 0.25;
+    if (config.mode === 'FAST_DOWN') probability = 0.2; // Could add more complex logic here
     
-    const shouldEnter = Math.random() > 0.1; // Very aggressive entry for testing
+    const shouldEnter = Math.random() < probability; 
     
     if (shouldEnter) {
        await storage.createTrade({

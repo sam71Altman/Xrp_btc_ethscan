@@ -120,10 +120,11 @@ async function tick(symbol: string) {
          profitPercent: "0",
        });
        console.log(`Entered ${symbol} trade at ${currentPrice}`);
-  sendTradeNotification(`🟢 *صفقة فتحت*\nالعملة: ${symbol}\nالسعر: ${currentPrice.toFixed(2)}`);
+       sendTradeNotification(`🟢 *صفقة فتحت*\nالعملة: ${symbol}\nالسعر: ${currentPrice.toFixed(2)}`);
        
        // Move to next symbol for the next trade
        currentSymbolIndex = (currentSymbolIndex + 1) % SYMBOLS.length;
+       console.log(`Rotated to next symbol index: ${currentSymbolIndex} (${SYMBOLS[currentSymbolIndex]})`);
     }
   }
 }

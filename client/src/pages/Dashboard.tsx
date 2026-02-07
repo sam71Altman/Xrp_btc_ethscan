@@ -75,14 +75,14 @@ export default function Dashboard() {
       </div>
 
       {/* Main Content Area */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[600px]">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Chart Section */}
-        <div className="lg:col-span-2 h-full min-h-[400px]">
+        <div className="lg:col-span-2 h-[400px] md:h-[500px] lg:h-[600px]">
           <MarketChart data={marketData || []} isLoading={marketLoading} />
         </div>
 
         {/* Trade Log Section */}
-        <div className="h-full min-h-[400px]">
+        <div className="h-[400px] md:h-[500px] lg:h-[600px]">
           <TradeLog trades={trades || []} isLoading={tradesLoading} />
         </div>
       </div>

@@ -21,7 +21,7 @@ export const trades = pgTable("trades", {
 export const configurations = pgTable("configurations", {
   id: serial("id").primaryKey(),
   isRunning: boolean("is_running").default(false).notNull(),
-  symbol: text("symbol").default("BTC/USD").notNull(),
+  symbol: text("symbol").default("BTC/USDT").notNull(),
   tpPercentage: numeric("tp_percentage").default("0.12").notNull(),
   maxHoldSeconds: integer("max_hold_seconds").default(300).notNull(), // 5 minutes
   cooldownSeconds: integer("cooldown_seconds").default(5).notNull(),

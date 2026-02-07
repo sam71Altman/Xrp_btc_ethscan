@@ -1,40 +1,50 @@
 import { storage } from "./storage";
+import { sendTradeNotification } from "./telegram";
 
 // Simulation State
 let currentPrice = 50000; // Starting BTC price
 let lastTickTime = Date.now();
 let lastTradeTime = 0;
 
-// Market Simulation Parameters
-const VOLATILITY = 0.0002; // Low volatility for micro-scalping environment
-const DRIFT = 0; // Neutral market mostly
-const TICK_RATE_MS = 1000; // 1 second ticks
+// Market Simulation Parameters (Mocking Binance Data for BTC, ETH, XRP)
+const SYMBOLS = ['BTC/USDT', 'ETH/USDT', 'XRP/USDT'];
+const VOLATILITY = 0.0002;
+const DRIFT = 0;
+const TICK_RATE_MS = 1000;
 
 export function startSimulation() {
-  console.log("Starting Continuous Profit Engine Simulation...");
+  console.log("Starting Continuous Profit Engine with Binance Data Mock (BTC, ETH, XRP)...");
   
-  // Tick loop
+  // Tick loop for each symbol
   setInterval(async () => {
     try {
-      await tick();
+      for (const symbol of SYMBOLS) {
+        await tick(symbol);
+      }
     } catch (error) {
       console.error("Simulation tick error:", error);
     }
   }, TICK_RATE_MS);
 }
 
-async function tick() {
+// Global price state for simulation
+const priceState: Record<string, number> = {
+  'BTC/USDT': 50000,
+  'ETH/USDT': 2800,
+  'XRP/USDT': 0.5
+};
+
+async function tick(symbol: string) {
   const now = Date.now();
   const config = await storage.getConfig();
 
-  // 1. Generate Price Movement (Geometric Brownian Motion-ish)
+  // 1. Generate Price Movement
   const changePercent = (Math.random() - 0.5) * VOLATILITY * 2 + DRIFT;
-  currentPrice = currentPrice * (1 + changePercent);
+  priceState[symbol] = priceState[symbol] * (1 + changePercent);
+  const currentPrice = priceState[symbol];
   
-  // Create Candle (Simulated 1s 'candle' for simplicity, or just tick data stored as candles)
-  // In a real app we'd aggregate ticks. Here each tick is a 'candle' for high-freq viz.
   await storage.addCandle({
-    symbol: config.symbol,
+    symbol: symbol,
     open: (currentPrice * (1 - Math.random() * 0.0001)).toString(),
     high: (currentPrice * (1 + Math.random() * 0.0001)).toString(),
     low: (currentPrice * (1 - Math.random() * 0.0001)).toString(),
@@ -42,15 +52,12 @@ async function tick() {
     time: new Date(now),
   });
   
-  // Cleanup old data to keep simulation light
-  if (Math.random() < 0.05) { // Occasional cleanup
-    await storage.cleanupOldCandles(60); // Keep last 60 mins
+  if (Math.random() < 0.05) {
+    await storage.cleanupOldCandles(60);
   }
 
-  // If engine is not running, stop logic here
-  if (!config.isRunning) return;
+  if (!config.isRunning || config.symbol !== symbol) return;
 
-  // 2. Strategy Logic
   const openTrade = await storage.getOpenTrade();
 
   if (openTrade) {
@@ -61,20 +68,20 @@ async function tick() {
     
     // Check Take Profit
     if (currentProfitPercent >= Number(config.tpPercentage)) {
-      await closeTrade(openTrade.id, currentPrice, 'TP', currentProfitPercent);
+      await closeTrade(openTrade.id, currentPrice, 'TP', currentProfitPercent, symbol);
       return;
     }
 
     // Check Time Exit (Mandatory 5 mins / configurable)
     if (durationSec >= config.maxHoldSeconds) {
-      await closeTrade(openTrade.id, currentPrice, 'TIME_EXIT', currentProfitPercent);
+      await closeTrade(openTrade.id, currentPrice, 'TIME_EXIT', currentProfitPercent, symbol);
       return;
     }
 
     // Emergency Stop (Internal safety, say -1% hard stop, though user said "No classic SL")
     // Adding a catastrophic stop is good engineering practice even if "No classic SL" is requested.
     if (currentProfitPercent < -2.0) {
-      await closeTrade(openTrade.id, currentPrice, 'EMERGENCY', currentProfitPercent);
+      await closeTrade(openTrade.id, currentPrice, 'EMERGENCY', currentProfitPercent, symbol);
       return;
     }
 
@@ -102,26 +109,20 @@ async function tick() {
     
     if (shouldEnter) {
        await storage.createTrade({
-         symbol: config.symbol,
+         symbol: symbol,
          entryPrice: currentPrice.toString(),
-         quantity: "0.1", // Fixed size for demo
+         quantity: (symbol === 'BTC/USDT' ? '0.01' : symbol === 'ETH/USDT' ? '0.1' : '100').toString(),
          status: 'OPEN',
          profit: "0",
          profitPercent: "0",
        });
-       console.log(`Entered trade at ${currentPrice}`);
+       console.log(`Entered ${symbol} trade at ${currentPrice}`);
+       sendTradeNotification(`Entered ${symbol} trade at ${currentPrice}`);
     }
   }
 }
 
-async function closeTrade(id: number, price: number, reason: string, profitPercent: number) {
-  const profit = (price * 0.1) - (price * 0.1 / (1 + profitPercent/100)); // Rough profit calc for demo
-  // Actually simpler: (Exit - Entry) * Qty
-  
-  // We need to fetch entry to be exact, but for this lightweight sim, let's trust the % passed in or recalc.
-  // Let's do it properly-ish in update:
-  
-  // Get trade to calc exact profit amount
+async function closeTrade(id: number, price: number, reason: string, profitPercent: number, symbol: string) {
   const trade = (await storage.getTrades(1)).find(t => t.id === id); // quick lookup
   if (!trade) return;
   
@@ -139,5 +140,6 @@ async function closeTrade(id: number, price: number, reason: string, profitPerce
   });
   
   lastTradeTime = Date.now();
-  console.log(`Closed trade ${reason} at ${price} (${profitPercent.toFixed(2)}%)`);
+  console.log(`Closed ${symbol} trade ${reason} at ${price} (${profitPercent.toFixed(2)}%)`);
+  sendTradeNotification(`Closed ${symbol} trade at ${price} (${profitPercent.toFixed(2)}%)\nReason: ${reason}`);
 }

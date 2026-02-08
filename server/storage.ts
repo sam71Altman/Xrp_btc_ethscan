@@ -102,6 +102,7 @@ export class DatabaseStorage implements IStorage {
 
   async getStats(): Promise<DashboardStats> {
     const allTrades = await db.select().from(trades);
+    const config = await this.getConfig();
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
@@ -118,12 +119,14 @@ export class DatabaseStorage implements IStorage {
       dailyLoss: Math.abs(dailyLoss), // Return positive number for loss magnitude
       activeTrades: allTrades.filter(t => t.status === 'OPEN').length,
       tradesToday: tradesToday.length,
+      currentBalance: Number(config.balance),
     };
   }
 
   async resetStats(): Promise<void> {
-    // We only reset CLOSED trades to clear stats, keeping OPEN trades active
+    const config = await this.getConfig();
     await db.delete(trades).where(eq(trades.status, 'CLOSED'));
+    await this.updateConfig({ balance: config.initialBalance });
   }
 }
 

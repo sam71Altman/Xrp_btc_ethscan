@@ -22,12 +22,14 @@ export const configurations = pgTable("configurations", {
   id: serial("id").primaryKey(),
   isRunning: boolean("is_running").default(false).notNull(),
   symbol: text("symbol").default("BTC/USDT").notNull(),
-  mode: text("mode").default("Normal").notNull(), // Add this line
+  mode: text("mode").default("Normal").notNull(),
   tpPercentage: numeric("tp_percentage").default("0.12").notNull(),
   maxHoldSeconds: integer("max_hold_seconds").default(300).notNull(), // 5 minutes
   cooldownSeconds: integer("cooldown_seconds").default(5).notNull(),
   dailyLossLimit: numeric("daily_loss_limit").default("5.0").notNull(), // % or absolute
   maxTradesPerHour: integer("max_trades_per_hour").default(50).notNull(),
+  balance: numeric("balance").default("1000.0").notNull(),
+  initialBalance: numeric("initial_balance").default("1000.0").notNull(),
 });
 
 export const marketCandles = pgTable("market_candles", {
@@ -64,4 +66,5 @@ export interface DashboardStats {
   dailyLoss: number;
   activeTrades: number;
   tradesToday: number;
+  currentBalance: number;
 }

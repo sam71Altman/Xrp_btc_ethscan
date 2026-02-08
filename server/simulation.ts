@@ -4,13 +4,13 @@ import { sendTradeNotification } from "./telegram";
 // Simulation State
 let lastTradeTime = 0;
 let currentSymbolIndex = 0;
-const SYMBOLS = ['BTC/USDT', 'ETH/USDT', 'XRP/USDT'];
+const SYMBOLS = ['BTC/USDT', 'ETH/USDT', 'XRP/USDT', 'SOL/USDT'];
 const VOLATILITY = 0.0002;
 const DRIFT = 0;
 const TICK_RATE_MS = 1000;
 
 export function startSimulation() {
-  console.log("Starting Continuous Profit Engine with Binance Data Mock (BTC, ETH, XRP)...");
+  console.log("Starting Continuous Profit Engine with Binance Data Mock (BTC, ETH, XRP, SOL)...");
   
   // Tick loop for each symbol
   setInterval(async () => {
@@ -28,7 +28,8 @@ export function startSimulation() {
 const priceState: Record<string, number> = {
   'BTC/USDT': 50000,
   'ETH/USDT': 2800,
-  'XRP/USDT': 0.5
+  'XRP/USDT': 0.5,
+  'SOL/USDT': 100
 };
 
 async function tick(symbol: string) {
@@ -114,7 +115,7 @@ async function tick(symbol: string) {
        await storage.createTrade({
          symbol: symbol,
          entryPrice: currentPrice.toString(),
-         quantity: (symbol === 'BTC/USDT' ? '0.01' : symbol === 'ETH/USDT' ? '0.1' : '100').toString(),
+         quantity: (symbol === 'BTC/USDT' ? '0.01' : symbol === 'ETH/USDT' ? '0.1' : symbol === 'SOL/USDT' ? '1' : '100').toString(),
          status: 'OPEN',
          profit: "0",
          profitPercent: "0",
@@ -149,7 +150,7 @@ async function closeTrade(id: number, price: number, reason: string, profitPerce
   lastTradeTime = Date.now();
   console.log(`Closed ${symbol} trade ${reason} at ${price} (${profitPercent.toFixed(2)}%)`);
   
-  const arabicReason = reason === 'TP' ? 'جني أرباح' : reason === 'TIME_EXIT' ? 'خروج زمني' : 'خروج طارئ';
+  const arabicReason = reason === 'TP' ? 'هدف ربح' : reason === 'TIME_EXIT' ? 'خروج زمني' : reason === 'EMERGENCY' ? 'خروج طارئ' : reason === 'MANUAL' ? 'إغلاق يدوي' : reason;
   const emoji = profitPercent > 0 ? '✅' : '❌';
   sendTradeNotification(`${emoji} *صفقة أغلقت*\nالنتيجة: ${profitPercent > 0 ? '+' : ''}${profitPercent.toFixed(2)}%\nالسبب: ${arabicReason}\nالمدة: ${Math.floor((Date.now() - new Date(trade.entryTime).getTime()) / 1000)} ثانية`);
 }

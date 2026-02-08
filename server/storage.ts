@@ -30,6 +30,7 @@ export interface IStorage {
 
   // Stats
   getStats(): Promise<DashboardStats>;
+  resetStats(): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -118,6 +119,11 @@ export class DatabaseStorage implements IStorage {
       activeTrades: allTrades.filter(t => t.status === 'OPEN').length,
       tradesToday: tradesToday.length,
     };
+  }
+
+  async resetStats(): Promise<void> {
+    // We only reset CLOSED trades to clear stats, keeping OPEN trades active
+    await db.delete(trades).where(eq(trades.status, 'CLOSED'));
   }
 }
 

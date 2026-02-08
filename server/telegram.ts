@@ -25,21 +25,24 @@ const t = {
   protection_idle: "خامل 🔍",
   
   // Controls
-  btn_start: "▶️ تشغيل التداول",
-  btn_stop: "⏸ إيقاف التداول",
-  btn_force_close: "⛔ إغلاق الكل فوراً",
-  btn_active: "📊 نشطة",
+  btn_toggle_start: "▶️ تشغيل التداول",
+  btn_toggle_stop: "⏸ إيقاف التداول",
+  btn_force_close: "🔴 إغلاق جميع الصفقات",
+  btn_active: "📊 الصفقات النشطة",
   btn_history: "📜 السجل",
   btn_stats: "📈 الإحصائيات",
   btn_diagnostic: "🔍 التشخيص",
   btn_settings_tp: "🎯 هدف الربح",
   btn_refresh: "🔄 تحديث",
+  btn_reset_stats: "🧹 تصفير العدادات",
   
   // Messages
   msg_started: "🚀 تم تشغيل محرك التداول",
   msg_stopped: "⏸ تم إيقاف محرك التداول",
   msg_force_closed: "⛔ تم إغلاق جميع الصفقات المفتوحة",
   msg_updated: "✅ تم التحديث",
+  msg_stats_reset: "🧹 تم تصفير جميع الإحصائيات بنجاح",
+  msg_confirm_reset: "⚠️ هل أنت متأكد من تصفير جميع العدادات؟",
 };
 
 export function initTelegramBot() {
@@ -51,12 +54,13 @@ export function initTelegramBot() {
 
   bot = new TelegramBot(token, { polling: true });
 
-  const getPersistentKeyboard = () => {
+  const getPersistentKeyboard = (isRunning: boolean) => {
     return {
       keyboard: [
-        [{ text: t.btn_start }, { text: t.btn_stop }, { text: t.btn_force_close }],
+        [{ text: isRunning ? t.btn_toggle_stop : t.btn_toggle_start }],
         [{ text: t.btn_active }, { text: t.btn_history }, { text: t.btn_stats }],
-        [{ text: t.btn_diagnostic }, { text: t.btn_settings_tp }, { text: t.btn_refresh }]
+        [{ text: t.btn_diagnostic }, { text: t.btn_settings_tp }, { text: t.btn_refresh }],
+        [{ text: t.btn_reset_stats }]
       ],
       resize_keyboard: true,
       persistent: true
@@ -88,9 +92,9 @@ ${t.dashboard}
 
   const sendOrUpdateDashboard = async (chatId: number) => {
     const text = await getDashboardText();
-    // We try to keep it simple: send a new message with the keyboard
+    const config = await storage.getConfig();
     bot?.sendMessage(chatId, text, {
-      reply_markup: getPersistentKeyboard(),
+      reply_markup: getPersistentKeyboard(config.isRunning),
       parse_mode: 'Markdown'
     });
   };
@@ -105,32 +109,12 @@ ${t.dashboard}
     const text = msg.text;
 
     switch (text) {
-      case t.btn_start:
-        await storage.updateConfig({ isRunning: true });
-        bot?.sendMessage(chatId, t.msg_started);
-        await sendOrUpdateDashboard(chatId);
-        break;
-
-      case t.btn_stop:
-        await storage.updateConfig({ isRunning: false });
-        bot?.sendMessage(chatId, t.msg_stopped);
-        await sendOrUpdateDashboard(chatId);
-        break;
-
-      case t.btn_force_close:
-        const openTrade = await storage.getOpenTrade();
-        if (openTrade) {
-          await storage.updateTrade(openTrade.id, {
-            status: 'CLOSED',
-            exitReason: 'MANUAL',
-            exitTime: new Date(),
-            profit: "0",
-            profitPercent: "0"
-          });
-          bot?.sendMessage(chatId, t.msg_force_closed);
-        } else {
-          bot?.sendMessage(chatId, "لا توجد صفقات مفتوحة");
-        }
+      case t.btn_toggle_start:
+      case t.btn_toggle_stop:
+        const currentConfig = await storage.getConfig();
+        const newState = !currentConfig.isRunning;
+        await storage.updateConfig({ isRunning: newState });
+        bot?.sendMessage(chatId, newState ? t.msg_started : t.msg_stopped);
         await sendOrUpdateDashboard(chatId);
         break;
 
@@ -143,7 +127,17 @@ ${t.dashboard}
           active.forEach(tr => {
             activeText += `• ${tr.symbol} | دخول: ${tr.entryPrice}\n`;
           });
-          bot?.sendMessage(chatId, activeText, { parse_mode: 'Markdown' });
+          
+          const inline_keyboard = active.map(tr => [{ 
+            text: `❌ إغلاق ${tr.symbol}`, 
+            callback_data: `close_trade_${tr.id}` 
+          }]);
+          inline_keyboard.push([{ text: t.btn_force_close, callback_data: 'force_close_all' }]);
+
+          bot?.sendMessage(chatId, activeText, { 
+            parse_mode: 'Markdown',
+            reply_markup: { inline_keyboard }
+          });
         }
         break;
 
@@ -155,54 +149,22 @@ ${t.dashboard}
           let histText = `📜 *آخر 20 صفقة*\n\n`;
           history.forEach(tr => {
             const emoji = Number(tr.profitPercent) > 0 ? '✅' : '❌';
-            histText += `${emoji} ${tr.symbol} | ${Number(tr.profitPercent).toFixed(2)}% | ${tr.exitReason}\n`;
+            const reason = tr.exitReason === 'TP' ? 'هدف ربح' : tr.exitReason === 'TIME_EXIT' ? 'خروج زمني' : tr.exitReason === 'EMERGENCY' ? 'خروج طارئ' : tr.exitReason === 'MANUAL' ? 'إغلاق يدوي' : tr.exitReason;
+            histText += `${emoji} ${tr.symbol} | ${Number(tr.profitPercent).toFixed(2)}% | ${reason}\n`;
           });
           bot?.sendMessage(chatId, histText, { parse_mode: 'Markdown' });
         }
         break;
 
-      case t.btn_stats:
-        const stats = await storage.getStats();
-        const statsText = `
-📈 *الإحصائيات*
-────────────────
-• صفقات اليوم: ${stats.tradesToday}
-• نسبة النجاح: ${stats.winRate.toFixed(1)}%
-• الربح الكلي: $${stats.totalProfit.toFixed(2)}
-• متوسط الربح/الصفقة: $${stats.tradesToday > 0 ? (stats.totalProfit / stats.tradesToday).toFixed(2) : '0.00'}
-────────────────
-        `.trim();
-        bot?.sendMessage(chatId, statsText, { parse_mode: 'Markdown' });
-        break;
-
-      case t.btn_diagnostic:
-        const diagText = `
-🔍 *التشخيص*
-────────────────
-• اتصال API: متصل ✅
-• زمن التنفيذ: 12ms
-• نظام الحماية: خامل 🔍
-• الذاكرة: ${(process.memoryUsage().heapUsed / 1024 / 1024).toFixed(2)} MB
-• صحة النظام: ممتاز ⚡
-────────────────
-        `.trim();
-        bot?.sendMessage(chatId, diagText, { parse_mode: 'Markdown' });
-        break;
-
-      case t.btn_settings_tp:
-        const tpMarkup = {
-          inline_keyboard: [
-            [
-              { text: "0.08%", callback_data: 'set_tp_0.08' },
-              { text: "0.10%", callback_data: 'set_tp_0.10' }
-            ],
-            [
-              { text: "0.12%", callback_data: 'set_tp_0.12' },
-              { text: "0.15%", callback_data: 'set_tp_0.15' }
-            ]
-          ]
-        };
-        bot?.sendMessage(chatId, "🎯 اختر هدف الربح المطلوب:", { reply_markup: tpMarkup });
+      case t.btn_reset_stats:
+        bot?.sendMessage(chatId, t.msg_confirm_reset, {
+          reply_markup: {
+            inline_keyboard: [[
+              { text: "✅ نعم، متأكد", callback_data: 'confirm_reset_stats' },
+              { text: "❌ إلغاء", callback_data: 'cancel_reset' }
+            ]]
+          }
+        });
         break;
 
       case t.btn_refresh:
@@ -220,6 +182,48 @@ ${t.dashboard}
       await storage.updateConfig({ tpPercentage: target });
       bot?.answerCallbackQuery(query.id, { text: `🎯 تم تحديد هدف الربح: ${target}%` });
       bot?.sendMessage(chatId, `✅ تم تحديث هدف الربح إلى ${target}%`);
+    }
+
+    if (query.data === 'confirm_reset_stats') {
+      await storage.resetStats();
+      bot?.answerCallbackQuery(query.id, { text: t.msg_stats_reset });
+      bot?.sendMessage(chatId, t.msg_stats_reset);
+      await sendOrUpdateDashboard(chatId);
+    }
+
+    if (query.data === 'cancel_reset') {
+      bot?.answerCallbackQuery(query.id, { text: "تم الإلغاء" });
+      bot?.deleteMessage(chatId, query.message!.message_id.toString());
+    }
+
+    if (query.data === 'force_close_all') {
+      const active = await storage.getTrades(50, 'OPEN');
+      for (const tr of active) {
+        await storage.updateTrade(tr.id, {
+          status: 'CLOSED',
+          exitReason: 'MANUAL',
+          exitTime: new Date(),
+          profit: "0",
+          profitPercent: "0"
+        });
+      }
+      bot?.answerCallbackQuery(query.id, { text: t.msg_force_closed });
+      bot?.sendMessage(chatId, t.msg_force_closed);
+      await sendOrUpdateDashboard(chatId);
+    }
+
+    if (query.data.startsWith('close_trade_')) {
+      const tradeId = parseInt(query.data.replace('close_trade_', ''));
+      await storage.updateTrade(tradeId, {
+        status: 'CLOSED',
+        exitReason: 'MANUAL',
+        exitTime: new Date(),
+        profit: "0",
+        profitPercent: "0"
+      });
+      bot?.answerCallbackQuery(query.id, { text: "تم إغلاق الصفقة" });
+      bot?.sendMessage(chatId, "✅ تم إغلاق الصفقة بنجاح");
+      await sendOrUpdateDashboard(chatId);
     }
   });
 

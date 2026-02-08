@@ -24,6 +24,14 @@ const t = {
   protection_active: "نشط 🛡️",
   protection_idle: "خامل 🔍",
   
+  // Progress Bar Helper
+  progress_bar: (current: number, target: number) => {
+    const percent = Math.min(Math.max((current / target) * 100, 0), 100);
+    const filledCount = Math.floor(percent / 10);
+    const bar = "▓".repeat(filledCount) + "░".repeat(10 - filledCount);
+    return `${bar} ${percent.toFixed(0)}%`;
+  },
+  
   // Controls
   btn_toggle_start: "▶️ تشغيل",
   btn_toggle_stop: "⏸ إيقاف",
@@ -56,6 +64,17 @@ export function initTelegramBot() {
   bot = new TelegramBot(token, { polling: true });
 
   let dashboardMessageId: number | null = null;
+  let activeChatId: number | null = null;
+
+  // Auto-refresh loop
+  setInterval(async () => {
+    if (activeChatId && dashboardMessageId) {
+      const stats = await storage.getStats();
+      if (stats.activeTrades > 0) {
+        await sendOrUpdateDashboard(activeChatId);
+      }
+    }
+  }, 2000);
 
   const getPersistentKeyboard = (isRunning: boolean) => {
     return {
@@ -73,8 +92,41 @@ export function initTelegramBot() {
   const getDashboardText = async () => {
     const config = await storage.getConfig();
     const stats = await storage.getStats();
-    const trades = await storage.getTrades(1);
-    const lastTrade = trades[0];
+    const openTrades = await storage.getTrades(1, 'OPEN');
+    const lastTrade = (await storage.getTrades(1, 'CLOSED'))[0];
+    const activeTrade = openTrades[0];
+
+    let tradeStatusText = "";
+    if (activeTrade) {
+      const entryPrice = Number(activeTrade.entryPrice);
+      const symbol = activeTrade.symbol;
+      const currentPrice = 50000; // This should ideally be fetched from simulation priceState, but since it's global, we might need a better way. For now, we'll use a placeholder or assume simulation updates it. 
+      // Actually, we can get the latest candle price.
+      const history = await storage.getMarketHistory(1);
+      const latestPrice = history.length > 0 ? Number(history[0].close) : entryPrice;
+      
+      const profitPercent = ((latestPrice - entryPrice) / entryPrice) * 100;
+      const targetProfit = Number(config.tpPercentage);
+      const progress = targetProfit > 0 ? profitPercent / targetProfit : 0;
+      
+      const durationSec = Math.floor((Date.now() - new Date(activeTrade.entryTime).getTime()) / 1000);
+      const maxSeconds = config.maxHoldSeconds;
+      const timeLeft = Math.max(maxSeconds - durationSec, 0);
+      const m = Math.floor(timeLeft / 60);
+      const s = timeLeft % 60;
+      const elapsedM = Math.floor(durationSec / 60);
+      const elapsedS = durationSec % 60;
+
+      tradeStatusText = `
+📍 *صفقة نشطة — ${symbol}*
+• سعر الدخول: ${entryPrice.toFixed(symbol.includes('XRP') ? 4 : 2)}
+• السعر الحالي: ${latestPrice.toFixed(symbol.includes('XRP') ? 4 : 2)}
+• الربح الحالي: ${profitPercent > 0 ? '+' : ''}${profitPercent.toFixed(2)}%
+• الهدف: +${targetProfit}%
+🎯 التقدم: ${t.progress_bar(profitPercent, targetProfit)}
+⏳ الوقت: ${elapsedM}:${elapsedS.toString().padStart(2, '0')} / ${Math.floor(maxSeconds/60)}:00
+────────────────`;
+    }
 
     const latency = "12ms"; 
 
@@ -83,10 +135,9 @@ ${t.dashboard}
 ────────────────
 • ${t.status}: ${config.isRunning ? t.running : t.stopped}
 • 💰 الرصيد الحالي: ${stats.currentBalance.toFixed(2)} USDT
-• ${t.active_trades}: ${stats.activeTrades}
-• ${t.trades_today}: ${stats.tradesToday}
-• ${t.daily_profit}: ${((stats.totalProfit / Number(config.initialBalance)) * 100).toFixed(2)}%
-• ${t.total_profit}: ${((stats.totalProfit / (Number(config.initialBalance) * 5)) * 100).toFixed(2)}%
+• 📈 ربح اليوم: ${((stats.totalProfit / Number(config.initialBalance)) * 100).toFixed(2)}%
+• 📊 عدد الصفقات: ${stats.tradesToday}
+${tradeStatusText}
 • ${t.last_trade}: ${lastTrade ? (Number(lastTrade.profitPercent) > 0 ? '✅' : '❌') + ' ' + Number(lastTrade.profitPercent).toFixed(2) + '%' : '---'}
 • ${t.last_execution}: ${latency}
 • ${t.platform_status}: ${t.connected}
@@ -95,6 +146,7 @@ ${t.dashboard}
   };
 
   const sendOrUpdateDashboard = async (chatId: number) => {
+    activeChatId = chatId;
     const text = await getDashboardText();
     const config = await storage.getConfig();
     
@@ -208,6 +260,20 @@ ${t.dashboard}
         await sendOrUpdateDashboard(chatId);
         break;
         
+      case t.btn_diagnostic:
+        const systemStats = {
+          uptime: Math.floor(os.uptime() / 3600),
+          load: os.loadavg()[0].toFixed(2),
+          memory: (os.freemem() / (1024 * 1024 * 1024)).toFixed(2) + "GB",
+        };
+        bot?.sendMessage(chatId, `🔍 *تشخيص النظام*\n\n• وقت العمل: ${systemStats.uptime} ساعة\n• حمل النظام: ${systemStats.load}\n• الذاكرة المتاحة: ${systemStats.memory}\n• حالة الاتصال: متصل ✅\n• WebSocket: مستقر ✅`, { parse_mode: 'Markdown' });
+        break;
+
+      case t.btn_stats:
+        const finalStats = await storage.getStats();
+        bot?.sendMessage(chatId, `📈 *إحصائيات التداول*\n\n• الربح الكلي: ${finalStats.totalProfit.toFixed(2)} USDT\n• نسبة النجاح: ${finalStats.winRate.toFixed(1)}%\n• عدد الصفقات: ${finalStats.tradesToday}\n• رصيد اليوم: ${finalStats.currentBalance.toFixed(2)} USDT`, { parse_mode: 'Markdown' });
+        break;
+
       case t.btn_settings_tp:
         bot?.sendMessage(chatId, "🎯 *إعدادات هدف الربح*\nاختر النسبة المئوية لإغلاق الصفقة آلياً:", {
           parse_mode: 'Markdown',

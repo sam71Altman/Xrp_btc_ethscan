@@ -232,6 +232,8 @@ export function sendTradeNotification(message: string) {
   
   bot.sendMessage(chatId, message, { parse_mode: 'Markdown' }).catch(err => {
     console.error("Telegram notification error:", err.message);
-    bot.sendMessage(chatId, message).catch(e => console.error("Final fallback error:", e.message));
+    if (bot) {
+      bot.sendMessage(chatId, message).catch(e => console.error("Final fallback error:", e.message));
+    }
   });
 }

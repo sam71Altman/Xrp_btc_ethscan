@@ -184,7 +184,12 @@ ${t.dashboard}
 
 export function sendTradeNotification(message: string) {
   const chatId = process.env.TELEGRAM_CHAT_ID;
-  if (bot && chatId) {
-    bot.sendMessage(chatId, message, { parse_mode: 'Markdown' });
-  }
+  if (!bot || !chatId) return;
+  
+  // Using Markdown for simpler parsing and handling the / issue
+  bot.sendMessage(chatId, message, { parse_mode: 'Markdown' }).catch(err => {
+    console.error("Telegram notification error:", err.message);
+    // Fallback without parse mode
+    bot.sendMessage(chatId, message).catch(e => console.error("Final fallback error:", e.message));
+  });
 }

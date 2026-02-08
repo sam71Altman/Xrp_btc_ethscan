@@ -105,7 +105,7 @@ export function ConfigurationPanel() {
           <Button 
             size="lg"
             variant={isRunning ? "destructive" : "default"}
-            className={cn("w-40 font-bold shadow-lg transition-all", isRunning ? "shadow-rose-900/20" : "shadow-emerald-900/20 hover:scale-105")}
+            className={cn("w-40 font-bold shadow-lg transition-all no-default-hover-elevate", isRunning ? "shadow-rose-900/20" : "shadow-emerald-900/20 hover:scale-105")}
             onClick={toggleRunning}
             disabled={updateMutation.isPending}
           >

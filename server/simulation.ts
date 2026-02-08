@@ -120,7 +120,7 @@ async function tick(symbol: string) {
          profitPercent: "0",
        });
        console.log(`Entered ${symbol} trade at ${currentPrice}`);
-       sendTradeNotification(`🟢 *صفقة فتحت*\nالعملة: ${symbol}\nالسعر: ${currentPrice.toFixed(2)}`);
+       sendTradeNotification(`🟢 *صفقة فتحت*\nالعملة: ${symbol.replace('/', '\\/')}\nالسعر: ${currentPrice.toFixed(2)}`);
        
        // Move to next symbol for the next trade
        currentSymbolIndex = (currentSymbolIndex + 1) % SYMBOLS.length;
@@ -151,5 +151,5 @@ async function closeTrade(id: number, price: number, reason: string, profitPerce
   
   const arabicReason = reason === 'TP' ? 'جني أرباح' : reason === 'TIME_EXIT' ? 'خروج زمني' : 'خروج طارئ';
   const emoji = profitPercent > 0 ? '✅' : '❌';
-  sendTradeNotification(`🔴 *صفقة أغلقت*\nالنتيجة: ${profitPercent > 0 ? '+' : ''}${profitPercent.toFixed(2)}%\nالمدة: ${Math.floor((Date.now() - new Date(trade.entryTime).getTime()) / 1000)} ثانية`);
+  sendTradeNotification(`${emoji} *صفقة أغلقت*\nالنتيجة: ${profitPercent > 0 ? '+' : ''}${profitPercent.toFixed(2)}%\nالسبب: ${arabicReason}\nالمدة: ${Math.floor((Date.now() - new Date(trade.entryTime).getTime()) / 1000)} ثانية`);
 }
